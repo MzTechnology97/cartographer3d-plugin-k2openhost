@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Callable, Protocol, Sequence, final
 from gcode import GCodeCommand, GCodeDispatch
 from typing_extensions import override
 
-from cartographer.adapters.klipper.endstop import KlipperEndstop, KlipperHomingState
+from cartographer.adapters.klipper.endstop import (
+    KlipperEndstop,
+    KlipperEndstopBase,
+    KlipperHomingState,
+    KlipperProbeEndstop,
+)
 from cartographer.adapters.klipper.homing import KlipperHomingChip
 from cartographer.adapters.klipper.logging import setup_console_logger
 from cartographer.adapters.klipper.temperature import PrinterTemperatureCoil
@@ -58,7 +63,17 @@ class KlipperLikeIntegrator(Integrator, ABC):
 
     @override
     def register_endstop_pin(self, chip_name: str, pin: str, endstop: Endstop) -> None:
-        mcu_endstop = KlipperEndstop(self._mcu, endstop)
+        # Current upstream Cartographer distinguishes the canonical probe
+        # endstop from a plain endstop.  Newer Klipper/Kalico uses the presence
+        # of get_position_endstop() to select the probe-session homing path.
+        #
+        # In mixed mode Cartographer is registered under `cartographer_probe`,
+        # therefore it must remain a plain endstop so it cannot be routed
+        # through PRTouch's primary `probe` object.
+        if chip_name == "probe":
+            mcu_endstop = KlipperProbeEndstop(self._mcu, endstop)
+        else:
+            mcu_endstop = KlipperEndstop(self._mcu, endstop)
         chip = KlipperHomingChip(mcu_endstop, pin)
         self._printer.lookup_object("pins").register_chip(chip_name, chip)
 
@@ -90,23 +105,26 @@ class KlipperLikeIntegrator(Integrator, ABC):
 
     @reraise_for_klipper
     def _handle_home_rails_begin(self, homing: Homing, rails: Sequence[_Rail]) -> None:
-        """Check if Cartographer MCU is disconnected before Z homing begins."""
-        # Check if we're homing Z
+        """Block Cartographer Z homing if its non-critical MCU is offline."""
         if 2 not in homing.get_axes():
             return
 
-        # Check if any of the endstops is our KlipperEndstop
         for rail in rails:
             for endstop, _ in rail.get_endstops():
-                if isinstance(endstop, KlipperEndstop):
-                    # Check if the MCU is disconnected
+                if isinstance(endstop, KlipperEndstopBase):
                     klipper_mcu = endstop.mcu.klipper_mcu
                     is_disconnected = (
-                        hasattr(klipper_mcu, 'is_non_critical') and klipper_mcu.is_non_critical and
-                        hasattr(klipper_mcu, 'non_critical_disconnected') and klipper_mcu.non_critical_disconnected
+                        hasattr(klipper_mcu, "is_non_critical")
+                        and klipper_mcu.is_non_critical
+                        and hasattr(klipper_mcu, "non_critical_disconnected")
+                        and klipper_mcu.non_critical_disconnected
                     )
                     if is_disconnected:
-                        mcu_name = klipper_mcu.get_name() if hasattr(klipper_mcu, 'get_name') else 'cartographer'
+                        mcu_name = (
+                            klipper_mcu.get_name()
+                            if hasattr(klipper_mcu, "get_name")
+                            else "cartographer"
+                        )
                         raise RuntimeError(
                             f"Cartographer MCU '{mcu_name}' is disconnected - cannot home Z axis"
                         )
@@ -115,7 +133,10 @@ class KlipperLikeIntegrator(Integrator, ABC):
     def _handle_home_rails_end(self, homing: Homing, rails: Sequence[_Rail]) -> None:
         homing_state = KlipperHomingState(homing)
         klipper_endstops = [
-            es.endstop for rail in rails for es, _ in rail.get_endstops() if isinstance(es, KlipperEndstop)
+            es.endstop
+            for rail in rails
+            for es, _ in rail.get_endstops()
+            if isinstance(es, KlipperEndstopBase)
         ]
         for endstop in klipper_endstops:
             endstop.on_home_end(homing_state)
