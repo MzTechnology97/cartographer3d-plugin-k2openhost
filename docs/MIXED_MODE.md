@@ -20,6 +20,14 @@ Cartographer
 
 This mirrors the purpose of the newer upstream Cartographer `register_as_probe` option while preserving Jacob's K2-specific adapter, touch and reconnect changes.
 
+## Current K2-OpenHost baseline
+
+As of **2026-10-01**, the K2 Pro has completed a full homing cycle with **PRTouch only** and Cartographer disabled. X/Y stall homing and the complete Z homing path are therefore known-good independently of Cartographer.
+
+The same external-host Kalico stack also completed a real Klippain-ShakeTune resonance test. This is important because mixed-mode work now starts from a machine-control baseline that has already demonstrated motion, homing and accelerometer operation.
+
+Mixed mode itself remains optional and is **not yet validated as a complete automatic Z/mesh workflow**. Direct-USB Cartographer must be validated first.
+
 ## Plugin behaviour
 
 ### `register_as_probe: true`
@@ -117,21 +125,21 @@ During initial mixed-mode validation, use PRTouch for the physical Z reference a
 
 ## Validation order
 
-Do not begin with `G28 Z`.
+Do not begin with mixed-mode `G28 Z`.
 
 Recommended validation sequence:
 
-1. Confirm Main MCU, Nozzle MCU and RS485/CFS are stable without Cartographer.
+1. Keep the already-validated PRTouch-only configuration as the rollback baseline.
 2. Connect Cartographer directly to the external host by USB.
 3. Confirm the Cartographer MCU identifies and streams without reconnect loops.
-4. Start with `register_as_probe: true` only if validating Cartographer standalone.
-5. For mixed mode, enable the known-working PRTouch configuration and set `register_as_probe: false`.
+4. Validate Cartographer standalone with `register_as_probe: true` if Cartographer-controlled probing is required.
+5. For mixed mode, restore the known-working PRTouch configuration and set `register_as_probe: false`.
 6. Confirm Klipper starts without a duplicate `probe` object or duplicate probe commands.
 7. Run `QUERY_PROBE` and verify it reports the PRTouch/primary-probe state.
 8. Run `CARTOGRAPHER_QUERY` and verify Cartographer remains independently available.
 9. Verify Cartographer scan data changes with target distance without commanding Z motion.
-10. Only then test controlled Z homing with the primary PRTouch path.
-11. Validate Cartographer mesh generation after Z homing is proven safe.
+10. Repeat controlled Z homing with the primary PRTouch path and compare it with the known-good PRTouch-only baseline.
+11. Validate Cartographer mesh generation only after Z homing remains proven safe.
 
 ## Expected command ownership
 
@@ -195,4 +203,4 @@ A configuration referencing the wrong virtual endstop can move Z using the wrong
 
 ## Status
 
-The mixed-mode registration logic is implemented in the K2-OpenHost fork. Full K2 Pro hardware validation of the combined PRTouch + Cartographer Z/mesh workflow is still required before it should be considered production-ready.
+The mixed-mode registration logic is implemented in the K2-OpenHost fork. The PRTouch-only full-homing baseline is hardware-validated. Full K2 Pro validation of the combined PRTouch + direct-USB Cartographer Z/mesh workflow is still required before mixed mode should be considered production-ready.
