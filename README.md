@@ -10,7 +10,7 @@ This repository intentionally combines work from three places:
 2. `Jacob10383/cartographer3d-plugin` — K2-specific port, reconnect handling, touch changes and K2 timing work.
 3. `MzTechnology97/cartographer3d-plugin-k2openhost` — external-host/Kalico integration for K2-OpenHost.
 
-The K2-specific work from Jacob is retained. K2-OpenHost adds compatibility with the namespaced `klippy.*` module layout used by `MzTechnology97/kalico-k2pro`, an editable-package installation workflow, and selected newer upstream Cartographer behaviour needed by the external-host architecture.
+The K2-specific work from Jacob is retained. K2-OpenHost adds compatibility with the namespaced `klippy.*` module layout used by `MzTechnology97/kalico-k2pro`, an editable-package installation workflow, current `register_as_probe` behavior and OpenHost-specific transport/update documentation.
 
 ## Current K2-OpenHost architecture
 
@@ -25,13 +25,15 @@ Cartographer USB ----------------> CM5 USB host
 
 Do not multiplex Cartographer onto the K2 service-port serial channels when a direct USB host port is available. Cartographer is a native Klipper MCU with continuous traffic and reset/re-enumeration behaviour; direct USB avoids an unnecessary PTY/MUX/DEMUX layer and leaves the three gadget serial channels dedicated to the K2 hardware buses.
 
+The experimental T113 MUX/DEMUX path did prove real Cartographer MCU streaming, but it is no longer the target architecture. It also helped expose a duplicate GS2 bridge/process-contention condition; once GS2 returned to a single direct RS-485 bridge, closed-loop motor communication returned to normal.
+
 After connecting Cartographer directly to the host, find its persistent device name with:
 
 ```bash
 ls -l /dev/serial/by-id/
 ```
 
-Prefer the `/dev/serial/by-id/...` path over `/dev/ttyACM0` because the ACM number may change after a reboot or USB re-enumeration.
+Prefer `/dev/serial/by-id/...` over `/dev/ttyACM0` because the ACM number may change after a reboot or USB re-enumeration.
 
 ## Installation
 
@@ -47,13 +49,25 @@ cd cartographer3d-plugin-k2openhost
   --klippy-env ~/klippy-env
 ```
 
-The installer installs this checkout into the Klippy virtual environment in **editable mode** and creates the normal loader:
+The installer installs this checkout into the Klippy virtual environment in **editable mode**.
+
+On `MzTechnology97/kalico-k2pro:k2-pro-openhost`, the Cartographer loader is already tracked by the Kalico repository at:
+
+```text
+~/klipper/klippy/extras/cartographer.py
+```
+
+The installer now detects and reuses that tracked loader and removes an untracked duplicate from `klippy/plugins/` if one exists. This avoids the Kalico error:
+
+```text
+Module 'cartographer' found in both extras and plugins!
+```
+
+On other compatible hosts without a tracked loader, the installer creates a single normal loader containing:
 
 ```python
 from cartographer.extra import *
 ```
-
-in `klippy/extras/cartographer.py` (or `klippy/plugins/cartographer.py` when the host uses that directory).
 
 Because the package is editable, a Git update changes the code imported by Kalico immediately. A normal repository update therefore does not need to reinstall the package. Runtime dependency changes are tracked in `requirements.txt` so Moonraker can update them when required.
 
@@ -78,13 +92,13 @@ register_as_probe: true
 
 The offsets above are examples for the K2 mounting arrangement used during development. Verify the offsets on the actual machine before probing.
 
-### Normal mode — Cartographer is the probe
+## Normal mode — Cartographer is the probe
 
 ```ini
 register_as_probe: true
 ```
 
-This is the traditional Cartographer configuration. Cartographer owns:
+Cartographer owns:
 
 - the Klipper/Kalico `probe` printer object;
 - `probe:z_virtual_endstop`;
@@ -105,7 +119,7 @@ Do not enable a second probe implementation that also claims the `probe` object 
 
 ## Mixed mode — PRTouch for Z reference, Cartographer for scanning
 
-K2-OpenHost now carries the newer Cartographer `register_as_probe` behaviour while retaining Jacob's K2-specific adapter/reconnect work.
+K2-OpenHost carries the newer Cartographer `register_as_probe` behavior while retaining Jacob's K2-specific adapter/reconnect work.
 
 Use:
 
@@ -128,7 +142,13 @@ With `register_as_probe: false`:
 
 This is the intended basis for the K2 mixed configuration: **PRTouch/load-cell for the physical nozzle-to-bed Z reference and Cartographer for fast bed scanning**.
 
-Mixed mode is currently an integration feature under K2-OpenHost hardware validation. Validate both probe paths independently before enabling automatic Z motion.
+## Known-good probe baseline on K2-OpenHost
+
+As of **2026-10-01**, a complete homing cycle has been verified on the real K2 Pro using **PRTouch only**, with Cartographer disabled. The same OpenHost stack also completed a **Klippain-ShakeTune resonance test** successfully.
+
+This PRTouch-only state is the reference baseline before direct-USB Cartographer is reintroduced. Mixed mode is optional and remains hardware-unvalidated as a complete automatic-Z workflow.
+
+Validate Cartographer standalone on direct USB first, then validate mixed mode only if it is actually desired.
 
 See [`docs/MIXED_MODE.md`](docs/MIXED_MODE.md) for the integration details and validation order.
 
@@ -136,7 +156,7 @@ See [`docs/MIXED_MODE.md`](docs/MIXED_MODE.md) for the integration details and v
 
 ### Cartographer K2-OpenHost repository
 
-Use the following current Moonraker configuration:
+Use:
 
 ```ini
 [update_manager cartographer]
@@ -155,26 +175,24 @@ info_tags:
 
 The same section is provided in [`moonraker-cartographer.conf`](moonraker-cartographer.conf).
 
-The older example below should **not** be used for this repository:
+Do **not** use the old pattern:
 
 ```ini
-# Do not use this example
 # env: ~/klippy-env/bin/python
 # install_script: install.sh
 ```
 
 Why:
 
-- `env` is deprecated by current Moonraker for extensions; use `virtualenv` instead.
-- this repository's installer is `scripts/install.sh`, not a root-level `install.sh`.
-- more importantly, Moonraker's `install_script` option is not a post-update installer hook. Current Moonraker only parses it for system-package dependency information. It does not run `scripts/install.sh` after a Git pull.
-- the editable install means a Git pull already updates the imported Cartographer code, while `requirements.txt` gives Moonraker a supported way to update Python dependencies.
+- use `virtualenv` instead of the deprecated `env` option;
+- this repository's installer is `scripts/install.sh`, not a root-level `install.sh`;
+- Moonraker's `install_script` is not a generic post-update hook;
+- the editable install means a Git pull already updates the imported Cartographer code;
+- `requirements.txt` gives Moonraker a supported dependency-update path.
 
-Moonraker only updates a Git repository when its working tree is in a valid/pristine state. Local edits inside the Cartographer repository should therefore be committed or removed before updating from Mainsail.
+Moonraker only updates a Git repository when its working tree is valid/pristine. Local edits inside the Cartographer repository should therefore be committed or removed before updating from Mainsail.
 
 ### Kalico / K2-OpenHost Klipper repository
-
-Current Moonraker discovers the running Klipper/Kalico source tree and Python executable automatically. For the built-in Klipper updater, current Moonraker only supports a small set of overrides in `moonraker.conf`; do not duplicate the source `path`, `origin` or virtualenv there.
 
 Make sure the local Kalico checkout tracks the K2-OpenHost branch:
 
@@ -186,47 +204,38 @@ git checkout k2-pro-openhost
 git branch --set-upstream-to=origin/k2-pro-openhost k2-pro-openhost
 ```
 
-Then the Moonraker override can remain minimal:
+The Moonraker override can remain minimal:
 
 ```ini
 [update_manager klipper]
 channel: dev
 ```
 
-Because this is an unofficial Klipper/Kalico remote, Moonraker may report an informational repository anomaly compared with the official Klipper remote/branch. The dev updater follows the checkout's configured tracking remote and branch when the repository is otherwise valid.
+Locally installed Klipper extras should not overwrite files tracked by `kalico-k2pro`. Keep third-party extras outside Git tracking so Mainsail does not mark the Kalico repository dirty.
 
 See [`docs/UPDATE_MANAGER.md`](docs/UPDATE_MANAGER.md) for troubleshooting and validation commands.
-
-## Update workflow
-
-After changing `moonraker.conf`:
-
-1. restart Moonraker;
-2. open the Mainsail **Machine / Update Manager** view;
-3. refresh update status;
-4. verify that `cartographer` reports the `main` branch and the expected GitHub origin;
-5. verify that `klipper`/Kalico reports the `k2-pro-openhost` checkout before using the update button.
-
-The Cartographer updater restarts the `klipper` service after a successful update.
 
 ## K2-specific status
 
 Validated during K2-OpenHost development:
 
-- package import on external Kalico;
+- editable package import on external Kalico;
 - Kalico adapter selection;
-- Cartographer V4 MCU communication;
-- Cartographer data streaming;
-- K2-specific non-critical MCU reconnect path;
-- normal `register_as_probe: true` configuration loading.
+- Cartographer V4 MCU communication through the experimental bridge;
+- live Cartographer sensor data streaming;
+- normal `register_as_probe: true` configuration loading;
+- tracked-loader coexistence with the `kalico-k2pro` source tree;
+- PRTouch-only complete homing baseline on the same K2-OpenHost machine;
+- successful ShakeTune resonance test on the same external-host stack.
 
-In progress / requiring final hardware validation:
+Still requiring final Cartographer hardware validation:
 
-- direct-USB cold boot and automated-reset behaviour on the external host;
-- `register_as_probe: false` mixed PRTouch + Cartographer operation;
-- controlled Z homing, scan/touch calibration and full bed mesh on the external-host stack.
+- direct-USB cold boot and automated-reset behavior on the external host;
+- controlled Cartographer Z homing / touch / scan calibration;
+- full Cartographer bed mesh on direct USB;
+- optional `register_as_probe: false` mixed PRTouch + Cartographer workflow.
 
-Do not perform unattended Z homing until the active probe path has been verified on the machine.
+Do not perform unattended Cartographer-controlled Z homing until the direct-USB path has been verified on the machine.
 
 ## Documentation
 
