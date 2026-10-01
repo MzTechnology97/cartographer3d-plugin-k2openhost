@@ -1,0 +1,4 @@
+# Runtime dependencies used by the K2-OpenHost Cartographer integration.
+# Moonraker's update_manager can consume this file when `virtualenv` is set.
+numpy>=1.16,<2
+typing-extensions~=4.12
