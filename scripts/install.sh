@@ -7,17 +7,19 @@ PACKAGE_NAME="cartographer3d-plugin"
 SCAFFOLDING="from cartographer.extra import *"
 DEFAULT_KLIPPER_DIR="$HOME/klipper"
 DEFAULT_KLIPPY_ENV="$HOME/klippy-env"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 function display_help() {
   echo "Usage: $0 [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -k, --klipper       Set the Klipper directory (default: $DEFAULT_KLIPPER_DIR)"
+  echo "  -k, --klipper       Set the Klipper/Kalico directory (default: $DEFAULT_KLIPPER_DIR)"
   echo "  -e, --klippy-env    Set the Klippy virtual environment directory (default: $DEFAULT_KLIPPY_ENV)"
   echo "  --uninstall         Uninstall the package and remove all scaffolding files"
   echo "  --help              Show this help message and exit"
   echo ""
-  echo "The script automatically removes all legacy and scaffolding files before installation."
+  echo "K2-OpenHost installs this checkout in editable mode so git updates are used directly."
   exit 0
 }
 
@@ -57,8 +59,15 @@ function check_directory_exists() {
 }
 
 function check_virtualenv_exists() {
-  if [ ! -d "$klippy_env" ]; then
-    echo "Error: Virtual environment directory '$klippy_env' does not exist."
+  if [ ! -x "$klippy_env/bin/python" ] || [ ! -x "$klippy_env/bin/pip" ]; then
+    echo "Error: '$klippy_env' is not a usable Python virtual environment."
+    exit 1
+  fi
+}
+
+function check_repo_checkout() {
+  if [ ! -f "$REPO_ROOT/pyproject.toml" ] || [ ! -d "$REPO_ROOT/src/cartographer" ]; then
+    echo "Error: unable to locate the Cartographer source tree at '$REPO_ROOT'."
     exit 1
   fi
 }
@@ -74,9 +83,8 @@ try:
     if version >= (1, 16):
         print(f'✓ numpy {numpy.__version__} already installed and >= 1.16')
         sys.exit(0)
-    else:
-        print(f'numpy {numpy.__version__} found but < 1.16, upgrading...')
-        sys.exit(1)
+    print(f'numpy {numpy.__version__} found but < 1.16, upgrading...')
+    sys.exit(1)
 except ImportError:
     print('numpy not found, installing numpy~=1.16...')
     sys.exit(1)
@@ -85,9 +93,9 @@ except ImportError:
 
 function install_dependencies() {
   ensure_numpy
-  echo "Installing or upgrading '$PACKAGE_NAME' into '$klippy_env'..."
-  "$klippy_env/bin/pip" install --upgrade "$PACKAGE_NAME"
-  echo "'$PACKAGE_NAME' has been successfully installed or upgraded into '$klippy_env'."
+  echo "Installing K2-OpenHost Cartographer from '$REPO_ROOT' into '$klippy_env' (editable)..."
+  "$klippy_env/bin/pip" install --upgrade -e "$REPO_ROOT"
+  echo "'$PACKAGE_NAME' is installed from the local K2-OpenHost checkout."
 }
 
 function uninstall_dependencies() {
@@ -113,26 +121,29 @@ function create_scaffolding() {
   if [ -L "$scaffolding_path" ]; then
     local original_target
     original_target=$(readlink "$scaffolding_path")
-    echo "Warning: '$scaffolding_path' is a symlink and will be removed."
-    echo "If you need to recover it, you can recreate the symlink with:"
-    echo "  ln -s \"$original_target\" \"$scaffolding_path\""
+    echo "Warning: '$scaffolding_path' is a symlink and will be replaced."
+    echo "Previous target: $original_target"
     rm "$scaffolding_path"
   fi
 
-  echo "$SCAFFOLDING" >"$scaffolding_path"
-  echo "File '$MODULE_NAME' has been created at '$scaffolding_path'."
+  printf '%s\n' "$SCAFFOLDING" >"$scaffolding_path"
+  echo "Created '$scaffolding_path'."
 
   if [ "$use_git_exclude" = true ]; then
     local exclude_file="$klipper_dir/.git/info/exclude"
-    if [ -d "$klipper_dir/.git" ] && ! grep -qF "$scaffolding_rel_path" "$exclude_file" >/dev/null 2>&1; then
-      echo "$scaffolding_rel_path" >>"$exclude_file"
-      echo "Added '$scaffolding_rel_path' to git exclude."
+    if [ -d "$klipper_dir/.git" ]; then
+      mkdir -p "$(dirname "$exclude_file")"
+      touch "$exclude_file"
+      if ! grep -qF "$scaffolding_rel_path" "$exclude_file" >/dev/null 2>&1; then
+        echo "$scaffolding_rel_path" >>"$exclude_file"
+        echo "Added '$scaffolding_rel_path' to git exclude."
+      fi
     fi
   fi
 }
 
 function remove_plugin_files() {
-  echo "Cleaning up legacy and scaffolding files..."
+  echo "Cleaning up legacy/scaffolding files..."
 
   local files=("idm.py" "scanner.py" "cartographer.py")
   local paths=(
@@ -142,7 +153,7 @@ function remove_plugin_files() {
 
   for dir in "${paths[@]}"; do
     if [ ! -d "$dir" ]; then
-      continue # Skip if directory doesn't exist
+      continue
     fi
 
     for file in "${files[@]}"; do
@@ -153,13 +164,12 @@ function remove_plugin_files() {
         if [ -L "$full_path" ]; then
           local original_target
           original_target=$(readlink "$full_path" 2>/dev/null || echo "unknown")
-          echo "Removing symlink '$full_path' (was pointing to: $original_target)"
+          echo "Removing symlink '$full_path' (target: $original_target)"
         else
           echo "Removing file '$full_path'"
         fi
         rm "$full_path"
 
-        # Clean up git exclude entries
         local exclude_file="$klipper_dir/.git/info/exclude"
         if [ -f "$exclude_file" ]; then
           sed -i "\|^$rel_path\$|d" "$exclude_file" 2>/dev/null || true
@@ -167,7 +177,6 @@ function remove_plugin_files() {
       fi
     done
   done
-  echo "File cleanup completed."
 }
 
 function main() {
@@ -178,6 +187,7 @@ function main() {
 
   check_directory_exists "$klipper_dir"
   check_virtualenv_exists
+  check_repo_checkout
 
   remove_plugin_files
 
