@@ -18,7 +18,7 @@ Usage: $0 [OPTIONS]
 Options:
   -k, --klipper DIR       Klipper/Kalico directory (default: $DEFAULT_KLIPPER_DIR)
   -e, --klippy-env DIR    Klippy virtual environment (default: $DEFAULT_KLIPPY_ENV)
-  --uninstall             Uninstall the Python package and remove scaffolding
+  --uninstall             Uninstall the Python package and remove untracked scaffolding
   --help                  Show this help message
 
 K2-OpenHost installs this checkout in editable mode. Normal Git/Moonraker
@@ -82,14 +82,17 @@ function check_repo_checkout() {
   fi
 }
 
+function is_tracked_by_klipper_repo() {
+  local rel_path="$1"
+  [[ -d "$klipper_dir/.git" ]] || return 1
+  git -C "$klipper_dir" ls-files --error-unmatch "$rel_path" >/dev/null 2>&1
+}
+
 function install_dependencies() {
   echo "Installing runtime requirements into '$klippy_env'..."
   "$klippy_env/bin/pip" install --upgrade -r "$REQUIREMENTS_FILE"
 
   echo "Installing K2-OpenHost Cartographer from '$REPO_ROOT' (editable)..."
-  # Dependencies are maintained explicitly through requirements.txt. Keeping
-  # the editable package separate is important for Moonraker: a Git pull then
-  # changes the source imported by Kalico immediately.
   "$klippy_env/bin/pip" install --upgrade --no-deps -e "$REPO_ROOT"
   echo "'$PACKAGE_NAME' is installed from the local K2-OpenHost checkout."
 }
@@ -100,43 +103,75 @@ function uninstall_dependencies() {
   echo "'$PACKAGE_NAME' has been uninstalled from '$klippy_env'."
 }
 
+function remove_untracked_file() {
+  local full_path="$1"
+  local rel_path="$2"
+
+  if [[ ! -e "$full_path" && ! -L "$full_path" ]]; then
+    return
+  fi
+
+  if is_tracked_by_klipper_repo "$rel_path"; then
+    echo "Keeping tracked Kalico file '$rel_path'."
+    return
+  fi
+
+  if [[ -L "$full_path" ]]; then
+    echo "Removing untracked symlink '$full_path' -> $(readlink "$full_path" 2>/dev/null || echo unknown)"
+  else
+    echo "Removing untracked file '$full_path'"
+  fi
+  rm -f "$full_path"
+
+  local exclude_file="$klipper_dir/.git/info/exclude"
+  if [[ -f "$exclude_file" ]]; then
+    sed -i "\|^$rel_path\$|d" "$exclude_file" 2>/dev/null || true
+  fi
+}
+
 function remove_plugin_files() {
-  echo "Cleaning legacy/scaffolding plugin loaders..."
+  echo "Cleaning legacy/untracked plugin loaders..."
 
-  local files=("idm.py" "scanner.py" "cartographer.py")
-  local paths=(
-    "$klipper_dir/klippy/extras"
-    "$klipper_dir/klippy/plugins"
-  )
-
-  for dir in "${paths[@]}"; do
+  local file
+  local dir
+  for dir in "$klipper_dir/klippy/extras" "$klipper_dir/klippy/plugins"; do
     [[ -d "$dir" ]] || continue
-
-    for file in "${files[@]}"; do
+    for file in idm.py scanner.py cartographer.py; do
       local full_path="$dir/$file"
       local rel_path="${dir#"$klipper_dir"/}/$file"
-
-      if [[ -f "$full_path" ]] || [[ -L "$full_path" ]]; then
-        if [[ -L "$full_path" ]]; then
-          echo "Removing symlink '$full_path' -> $(readlink "$full_path" 2>/dev/null || echo unknown)"
-        else
-          echo "Removing file '$full_path'"
-        fi
-        rm -f "$full_path"
-
-        local exclude_file="$klipper_dir/.git/info/exclude"
-        if [[ -f "$exclude_file" ]]; then
-          sed -i "\|^$rel_path\$|d" "$exclude_file" 2>/dev/null || true
-        fi
-      fi
+      remove_untracked_file "$full_path" "$rel_path"
     done
   done
 }
 
 function create_scaffolding() {
+  local tracked_extras="klippy/extras/$MODULE_NAME"
+  local tracked_plugins="klippy/plugins/$MODULE_NAME"
+
+  # K2-OpenHost Kalico already carries a tracked loader in klippy/extras.
+  # Reuse it and never create a duplicate in klippy/plugins.
+  if is_tracked_by_klipper_repo "$tracked_extras"; then
+    if [[ ! -f "$klipper_dir/$tracked_extras" ]]; then
+      echo "Restoring tracked Cartographer loader '$tracked_extras'."
+      git -C "$klipper_dir" restore --source=HEAD -- "$tracked_extras"
+    fi
+    rm -f "$klipper_dir/$tracked_plugins"
+    echo "Using tracked Kalico Cartographer loader '$tracked_extras'."
+    return
+  fi
+
+  if is_tracked_by_klipper_repo "$tracked_plugins"; then
+    if [[ ! -f "$klipper_dir/$tracked_plugins" ]]; then
+      echo "Restoring tracked Cartographer loader '$tracked_plugins'."
+      git -C "$klipper_dir" restore --source=HEAD -- "$tracked_plugins"
+    fi
+    rm -f "$klipper_dir/$tracked_extras"
+    echo "Using tracked Kalico Cartographer loader '$tracked_plugins'."
+    return
+  fi
+
   local scaffolding_dir
   local use_git_exclude
-
   if [[ -d "$klipper_dir/klippy/plugins" ]]; then
     scaffolding_dir="$klipper_dir/klippy/plugins"
     use_git_exclude=false
@@ -157,7 +192,7 @@ function create_scaffolding() {
     local exclude_file="$klipper_dir/.git/info/exclude"
     mkdir -p "$(dirname "$exclude_file")"
     touch "$exclude_file"
-    if ! grep -qF "$scaffolding_rel_path" "$exclude_file" >/dev/null 2>&1; then
+    if ! grep -qxF "$scaffolding_rel_path" "$exclude_file" >/dev/null 2>&1; then
       echo "$scaffolding_rel_path" >>"$exclude_file"
       echo "Added '$scaffolding_rel_path' to the local Kalico Git exclude file."
     fi
