@@ -46,8 +46,16 @@ class KlipperHomingState(HomingState):
         self.homing.set_homed_position([None, None, position])
 
 
-@final
-class KlipperEndstop(MCU_endstop):
+class KlipperEndstopBase(MCU_endstop):
+    """Bridge Cartographer's endstop interface to Klipper/Kalico MCU_endstop.
+
+    The base intentionally does not expose ``get_position_endstop``.  Newer
+    Klipper/Kalico homing code uses the presence of that method to decide
+    whether Z homing should be routed through the canonical probe object.  In
+    mixed mode Cartographer is not that object, so the plain endstop must not
+    advertise probe-session semantics.
+    """
+
     def __init__(self, mcu: KlipperCartographerMcu, endstop: Endstop):
         self.mcu = mcu
         self.endstop = endstop
@@ -85,16 +93,41 @@ class KlipperEndstop(MCU_endstop):
     @override
     @reraise_for_klipper
     def query_endstop(self, print_time: float) -> int:
-        # If MCU is disconnected, report as not triggered 
+        # Preserve Jacob's K2 non-critical MCU behaviour.  When Cartographer is
+        # temporarily disconnected, report the endstop as triggered so an
+        # unsafe Z move is not started through the missing sensor path.
         klipper_mcu = self.mcu.klipper_mcu
         is_disconnected = (
-            hasattr(klipper_mcu, 'is_non_critical') and klipper_mcu.is_non_critical and
-            hasattr(klipper_mcu, 'non_critical_disconnected') and klipper_mcu.non_critical_disconnected
+            hasattr(klipper_mcu, "is_non_critical")
+            and klipper_mcu.is_non_critical
+            and hasattr(klipper_mcu, "non_critical_disconnected")
+            and klipper_mcu.non_critical_disconnected
         )
         if is_disconnected:
-            return 1 
+            return 1
         return 1 if self.endstop.query_is_triggered(print_time) else 0
+
+
+@final
+class KlipperProbeEndstop(KlipperEndstopBase):
+    """Endstop used when Cartographer owns the canonical ``probe`` object.
+
+    Exposing ``get_position_endstop`` tells newer Klipper/Kalico homing code
+    that this endstop may use the probe-session Z-homing path.
+    """
 
     @override
     def get_position_endstop(self) -> float:
         return self.endstop.get_endstop_position()
+
+
+@final
+class KlipperEndstop(KlipperEndstopBase):
+    """Plain endstop for mixed mode and Cartographer-internal probing moves.
+
+    Deliberately does not expose ``get_position_endstop``.  This prevents a
+    Cartographer endstop registered as ``cartographer_probe`` from being routed
+    through a different primary probe object such as K2 PRTouch.
+    """
+
+    pass
