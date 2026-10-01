@@ -2,6 +2,8 @@
 
 This document covers updating the K2-OpenHost Cartographer fork and the external-host Kalico checkout from Mainsail.
 
+Updated: **2026-10-01**.
+
 ## Cartographer updater
 
 Add this section to `~/printer_data/config/moonraker.conf`:
@@ -21,9 +23,7 @@ info_tags:
   desc=Cartographer3D Plugin - K2-OpenHost
 ```
 
-A copy is available as `moonraker-cartographer.conf` in the repository.
-
-Restart Moonraker after editing its configuration.
+A copy is available as `moonraker-cartographer.conf` in the repository. Restart Moonraker after editing its configuration.
 
 ## Why the older example fails
 
@@ -43,21 +43,19 @@ managed_services: klipper
 
 has two problems on current Moonraker:
 
-1. `env` is deprecated for extension updaters. `virtualenv: ~/klippy-env` is the current form.
+1. `env` is deprecated for extension updaters. Use `virtualenv: ~/klippy-env`.
 2. `install_script: install.sh` points to a file that does not exist at the repository root. The K2-OpenHost installer is `scripts/install.sh`.
 
-More importantly, even changing it to `scripts/install.sh` would not provide a post-update hook. Moonraker's `install_script` option is a legacy dependency-discovery mechanism: Moonraker parses the script for system package declarations; it does not execute the installer after every Git update.
-
-K2-OpenHost therefore uses:
+More importantly, Moonraker's `install_script` option is not a generic post-update installer hook. K2-OpenHost therefore uses:
 
 ```ini
 virtualenv: ~/klippy-env
 requirements: requirements.txt
 ```
 
-The repository is installed into that virtualenv in editable mode, so a Git pull immediately changes the Python source imported by Kalico. Moonraker can update Python requirements when the requirements file changes, then restart Klipper through `managed_services: klipper`.
+The repository is installed into that virtualenv in editable mode, so a Git pull immediately changes the Python source imported by Kalico.
 
-## Initial installation is still required
+## Initial installation
 
 The update manager does not replace the first installation:
 
@@ -70,13 +68,42 @@ cd cartographer3d-plugin-k2openhost
 
 After the editable install and loader are in place, normal source updates can be performed from Mainsail.
 
-If a future release explicitly changes the loader/scaffolding or installation layout, release notes may ask for `./scripts/install.sh` to be run manually once.
+## Loader behavior on `kalico-k2pro`
+
+`MzTechnology97/kalico-k2pro:k2-pro-openhost` already tracks:
+
+```text
+klippy/extras/cartographer.py
+```
+
+The K2-OpenHost Cartographer installer detects and reuses that tracked file. It must **not** leave a second untracked loader in:
+
+```text
+klippy/plugins/cartographer.py
+```
+
+because Kalico will stop with:
+
+```text
+Module 'cartographer' found in both extras and plugins!
+```
+
+The current installer removes the untracked duplicate and restores/reuses the tracked Kalico loader.
+
+If upgrading from an older installation that created both files, verify:
+
+```bash
+cd ~/klipper
+ls -l klippy/extras/cartographer.py klippy/plugins/cartographer.py 2>/dev/null || true
+git ls-files klippy/extras/cartographer.py
+git ls-files klippy/plugins/cartographer.py
+```
+
+On the K2-OpenHost Kalico branch, keep the tracked `klippy/extras/cartographer.py` and remove only an untracked duplicate from `klippy/plugins/`.
 
 ## Kalico / Klipper updater
 
-Current Moonraker detects the running Klipper source path and Python executable from the connected Klippy instance. The built-in `[update_manager klipper]` section is therefore different from a normal third-party extension.
-
-Make sure the checkout itself is on the K2-OpenHost branch and tracks its remote:
+Current Moonraker detects the running Klipper source path and Python executable from the connected Klippy instance. Make sure the checkout itself is on the K2-OpenHost branch and tracks its remote:
 
 ```bash
 cd ~/klipper
@@ -86,22 +113,14 @@ git checkout k2-pro-openhost
 git branch --set-upstream-to=origin/k2-pro-openhost k2-pro-openhost
 ```
 
-Then use only the supported updater override:
+Then use only the built-in updater override:
 
 ```ini
 [update_manager klipper]
 channel: dev
 ```
 
-Do not add a second updater pointing at `~/klipper` under another name. Two update-manager entries managing the same source tree can conflict with Moonraker's path reservation and recovery logic.
-
-## Unofficial remote warning
-
-Moonraker's built-in Klipper updater is based around the official Klipper repository metadata. A K2-OpenHost Kalico fork may therefore be reported as an unofficial remote/branch anomaly.
-
-This warning is distinct from a dirty/corrupt/invalid repository. In dev mode Moonraker resolves the current checkout's tracking remote and branch for normal fetch/pull operations. Verify the displayed branch and upstream before updating.
-
-Do not use a hard recovery operation without first checking the recovery URL shown by Moonraker.
+Do not add a second updater pointing at `~/klipper` under another name.
 
 ## Repository must be clean
 
@@ -125,7 +144,26 @@ git remote -v
 git branch -vv
 ```
 
-A normal K2-OpenHost installation should not modify tracked files inside the Cartographer repository. The loader is created in the Kalico checkout and excluded from its local Git status by the installer when necessary.
+Files tracked by `kalico-k2pro` should be restored from Git instead of overwritten by third-party installers.
+
+Locally installed extras that are not part of the fork can remain outside Git tracking. If an external plugin creates an untracked file/symlink under `~/klipper/klippy/extras`, use a local `.git/info/exclude` entry rather than committing unrelated plugin code into the Kalico fork.
+
+Example for a local ShakeTune installation:
+
+```bash
+cd ~/klipper
+grep -qxF 'klippy/extras/shaketune' .git/info/exclude || \
+  echo 'klippy/extras/shaketune' >> .git/info/exclude
+```
+
+For a local DynamicMacros module:
+
+```bash
+grep -qxF 'klippy/extras/dynamicmacros.py' .git/info/exclude || \
+  echo 'klippy/extras/dynamicmacros.py' >> .git/info/exclude
+```
+
+Use the exact path shape shown by `git status --short`; a symlink such as `shaketune` is matched without a trailing slash.
 
 ## Verify Moonraker loading
 
@@ -165,7 +203,7 @@ Check Moonraker's log first. Common causes are:
 - `origin` does not match the configured repository;
 - the same update-manager section is defined more than once.
 
-The expected paths for the standard K2-OpenHost installation are:
+Expected paths:
 
 ```text
 ~/cartographer3d-plugin-k2openhost
@@ -173,18 +211,24 @@ The expected paths for the standard K2-OpenHost installation are:
 ~/cartographer3d-plugin-k2openhost/requirements.txt
 ```
 
-## If Mainsail says the repository is dirty
+## If Mainsail says the Kalico repository is dirty
 
-Run:
+Start with:
 
 ```bash
-cd ~/cartographer3d-plugin-k2openhost
-git status
+cd ~/klipper
+git status --short
 ```
 
-Do not blindly use hard recovery if the local modifications are intentional. Commit, stash or manually reconcile them first.
+For a tracked file that should match the fork:
 
-## Update behaviour
+```bash
+git restore --source=HEAD -- path/to/file
+```
+
+For untracked third-party extras, either keep them outside the Kalico tree or add an exact local `.git/info/exclude` entry. Do not hide a tracked modification with an exclude rule; Git ignore/exclude only applies to untracked paths.
+
+## Update behavior
 
 A normal Cartographer update performs conceptually:
 
@@ -195,4 +239,4 @@ fetch/pull repository
 -> restart Klipper
 ```
 
-It does not rerun the K2-OpenHost installation script.
+It does not need to rerun the K2-OpenHost installation script for ordinary source updates.
