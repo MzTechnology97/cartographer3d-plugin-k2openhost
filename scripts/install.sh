@@ -21,10 +21,10 @@ Options:
   --uninstall             Uninstall the Python package and remove scaffolding
   --help                  Show this help message
 
-K2-OpenHost installs this checkout in editable mode.  Normal Git/Moonraker
+K2-OpenHost installs this checkout in editable mode. Normal Git/Moonraker
 updates therefore update the code used by Kalico without reinstalling the
-package.  Runtime dependencies are declared in requirements.txt so Moonraker
-can maintain them when configured with `virtualenv` + `requirements`.
+package. Runtime dependencies are declared in requirements.txt so Moonraker
+can maintain them when configured with virtualenv + requirements.
 EOF
   exit 0
 }
@@ -87,7 +87,7 @@ function install_dependencies() {
   "$klippy_env/bin/pip" install --upgrade -r "$REQUIREMENTS_FILE"
 
   echo "Installing K2-OpenHost Cartographer from '$REPO_ROOT' (editable)..."
-  # Dependencies are maintained explicitly through requirements.txt.  Keeping
+  # Dependencies are maintained explicitly through requirements.txt. Keeping
   # the editable package separate is important for Moonraker: a Git pull then
   # changes the source imported by Kalico immediately.
   "$klippy_env/bin/pip" install --upgrade --no-deps -e "$REPO_ROOT"
@@ -171,11 +171,11 @@ K2-OpenHost Cartographer installation complete.
 
 Recommended transport:
   Connect Cartographer directly to the external Kalico host and use its
-  /dev/serial/by-id/... path.  Keep ttyUSB0/1/2 dedicated to K2 Main MCU,
+  /dev/serial/by-id/... path. Keep ttyUSB0/1/2 dedicated to K2 Main MCU,
   Nozzle MCU and RS485/CFS respectively.
 
 Moonraker/Mainsail updates:
-  See README.md and docs/UPDATE_MANAGER.md.  Do not configure `install_script`
+  See README.md and docs/UPDATE_MANAGER.md. Do not configure install_script
   as a post-update hook; Moonraker does not execute it that way.
 EOF
 }
