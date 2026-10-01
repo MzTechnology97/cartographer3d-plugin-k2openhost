@@ -3,7 +3,7 @@ name = "cartographer3d-plugin"
 requires-python = ">=3.8, <4"
 license = { file = "LICENSE" }
 dependencies = ["typing-extensions~=4.12"]
-keywords = ["klipper", "3D printing", "cartographer"]
+keywords = ["klipper", "kalico", "3D printing", "cartographer", "creality k2"]
 classifiers = [
   "Development Status :: 3 - Alpha",
 
@@ -11,12 +11,13 @@ classifiers = [
 
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
-description = "An extras for klipper to integrate with cartographer"
+description = "K2-OpenHost Cartographer3D integration for external Klipper/Kalico hosts"
 dynamic = ["version"]
 
 [project.urls]
 homepage = "https://cartographer3d.com/"
-repository = "https://github.com/Cartographer3D/cartographer3d-plugin"
+repository = "https://github.com/MzTechnology97/cartographer3d-plugin-k2openhost"
+upstream = "https://github.com/Cartographer3D/cartographer3d-plugin"
 
 [project.optional-dependencies]
 scipy = ["scipy~=1.9"]
@@ -55,7 +56,6 @@ default-groups = ["test", "lint", "typecheck", "scripts"]
 [tool.hatch.version]
 source = "vcs"
 # TestPyPi does not support local version identifiers
-# https://github.com/ofek/hatch-vcs/issues/43
 raw-options.local_scheme = "no-local-version"
 
 [tool.hatch.build.hooks.vcs]
