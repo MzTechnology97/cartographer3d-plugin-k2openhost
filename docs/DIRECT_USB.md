@@ -1,6 +1,6 @@
 # Direct USB transport for K2-OpenHost
 
-Updated: **2026-10-01**.
+Reviewed: **2026-10-02**.
 
 ## Recommended topology
 

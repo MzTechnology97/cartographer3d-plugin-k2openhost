@@ -22,7 +22,7 @@ This mirrors the purpose of the newer upstream Cartographer `register_as_probe` 
 
 ## Current K2-OpenHost baseline
 
-As of **2026-10-01**, the K2 Pro has completed a full homing cycle with **PRTouch only** and Cartographer disabled. X/Y stall homing and the complete Z homing path are therefore known-good independently of Cartographer.
+As of **2026-10-02**, the K2 Pro known-good baseline includes a full homing cycle with **PRTouch only** and Cartographer disabled. X/Y stall homing and the complete Z homing path are therefore known-good independently of Cartographer.
 
 The same external-host Kalico stack also completed a real Klippain-ShakeTune resonance test. This is important because mixed-mode work now starts from a machine-control baseline that has already demonstrated motion, homing and accelerometer operation.
 

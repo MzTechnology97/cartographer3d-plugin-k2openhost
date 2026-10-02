@@ -144,7 +144,7 @@ This is the intended basis for the K2 mixed configuration: **PRTouch/load-cell f
 
 ## Known-good probe baseline on K2-OpenHost
 
-As of **2026-10-01**, a complete homing cycle has been verified on the real K2 Pro using **PRTouch only**, with Cartographer disabled. The same OpenHost stack also completed a **Klippain-ShakeTune resonance test** successfully.
+As of **2026-10-02**, the known-good machine baseline still includes a complete homing cycle on the real K2 Pro using **PRTouch only**, with Cartographer disabled. The same OpenHost stack also completed a **Klippain-ShakeTune resonance test** successfully.
 
 This PRTouch-only state is the reference baseline before direct-USB Cartographer is reintroduced. Mixed mode is optional and remains hardware-unvalidated as a complete automatic-Z workflow.
 

@@ -2,7 +2,7 @@
 
 This document covers updating the K2-OpenHost Cartographer fork and the external-host Kalico checkout from Mainsail.
 
-Updated: **2026-10-01**.
+Reviewed: **2026-10-02**.
 
 ## Cartographer updater
 
