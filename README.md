@@ -63,7 +63,7 @@ Cartographer is **not** part of `MzTechnology97/kalico-k2pro`: this fork is the 
 Module 'cartographer' found in both extras and plugins!
 ```
 
-[k2-openhost-helper](https://github.com/MzTechnology97/k2-openhost-helper) runs this installer from its Cartographer menu entry.
+[K2-OpenHost Installer Helper](https://github.com/MzTechnology97/k2-openhost-installer-helper) runs this installer from its Cartographer menu entry.
 
 Because the package is editable, a Git update changes the code imported by Kalico immediately. A normal repository update therefore does not need to reinstall the package. Runtime dependency changes are tracked in `requirements.txt` so Moonraker can update them when required.
 
