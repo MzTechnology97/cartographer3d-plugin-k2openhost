@@ -51,23 +51,19 @@ cd cartographer3d-plugin-k2openhost
 
 The installer installs this checkout into the Klippy virtual environment in **editable mode**.
 
-On `MzTechnology97/kalico-k2pro:k2-pro-openhost`, the Cartographer loader is already tracked by the Kalico repository at:
+Cartographer is **not** part of `MzTechnology97/kalico-k2pro`: this fork is the only supported Cartographer build for K2-OpenHost (other builds of the `cartographer` package do not work on the aarch64 host). The installer creates the single loader Kalico needs:
 
 ```text
-~/klipper/klippy/extras/cartographer.py
+~/klipper/klippy/plugins/cartographer.py   ->   from cartographer.extra import *
 ```
 
-The installer now detects and reuses that tracked loader and removes an untracked duplicate from `klippy/plugins/` if one exists. This avoids the Kalico error:
+`klippy/plugins/` is ignored by Kalico's Git tree, so Mainsail keeps the Kalico checkout clean. The installer also removes any older untracked loader left in `klippy/extras/`, which would otherwise make Kalico stop with:
 
 ```text
 Module 'cartographer' found in both extras and plugins!
 ```
 
-On other compatible hosts without a tracked loader, the installer creates a single normal loader containing:
-
-```python
-from cartographer.extra import *
-```
+[k2-openhost-helper](https://github.com/MzTechnology97/k2-openhost-helper) runs this installer from its Cartographer menu entry.
 
 Because the package is editable, a Git update changes the code imported by Kalico immediately. A normal repository update therefore does not need to reinstall the package. Runtime dependency changes are tracked in `requirements.txt` so Moonraker can update them when required.
 
@@ -224,7 +220,7 @@ Validated during K2-OpenHost development:
 - Cartographer V4 MCU communication through the experimental bridge;
 - live Cartographer sensor data streaming;
 - normal `register_as_probe: true` configuration loading;
-- tracked-loader coexistence with the `kalico-k2pro` source tree;
+- a single loader in `klippy/plugins/`, outside the `kalico-k2pro` Git tree;
 - PRTouch-only complete homing baseline on the same K2-OpenHost machine;
 - successful ShakeTune resonance test on the same external-host stack.
 

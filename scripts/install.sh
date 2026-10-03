@@ -148,8 +148,9 @@ function create_scaffolding() {
   local tracked_extras="klippy/extras/$MODULE_NAME"
   local tracked_plugins="klippy/plugins/$MODULE_NAME"
 
-  # K2-OpenHost Kalico already carries a tracked loader in klippy/extras.
-  # Reuse it and never create a duplicate in klippy/plugins.
+  # Older kalico-k2pro revisions tracked a loader in klippy/extras; reuse a
+  # tracked loader if one exists and never create a duplicate. Current
+  # revisions track none, so the loader is created in klippy/plugins below.
   if is_tracked_by_klipper_repo "$tracked_extras"; then
     if [[ ! -f "$klipper_dir/$tracked_extras" ]]; then
       echo "Restoring tracked Cartographer loader '$tracked_extras'."

@@ -70,36 +70,34 @@ After the editable install and loader are in place, normal source updates can be
 
 ## Loader behavior on `kalico-k2pro`
 
-`MzTechnology97/kalico-k2pro:k2-pro-openhost` already tracks:
-
-```text
-klippy/extras/cartographer.py
-```
-
-The K2-OpenHost Cartographer installer detects and reuses that tracked file. It must **not** leave a second untracked loader in:
+Since 2026-10-03 `MzTechnology97/kalico-k2pro` no longer tracks `klippy/extras/cartographer.py`. The loader belongs to this fork's installation and lives in:
 
 ```text
 klippy/plugins/cartographer.py
 ```
 
-because Kalico will stop with:
+which Kalico's `.gitignore` excludes, so the Kalico checkout stays clean for Moonraker.
+
+After updating Kalico past that change, run the installer once more so the loader exists in `klippy/plugins/`:
+
+```bash
+~/cartographer3d-plugin-k2openhost/scripts/install.sh --klipper ~/klipper --klippy-env ~/klippy-env
+```
+
+Exactly one loader must exist, otherwise Kalico stops with:
 
 ```text
 Module 'cartographer' found in both extras and plugins!
 ```
 
-The current installer removes the untracked duplicate and restores/reuses the tracked Kalico loader.
-
-If upgrading from an older installation that created both files, verify:
+The installer removes untracked loaders from `klippy/extras/`. To verify:
 
 ```bash
 cd ~/klipper
 ls -l klippy/extras/cartographer.py klippy/plugins/cartographer.py 2>/dev/null || true
-git ls-files klippy/extras/cartographer.py
-git ls-files klippy/plugins/cartographer.py
 ```
 
-On the K2-OpenHost Kalico branch, keep the tracked `klippy/extras/cartographer.py` and remove only an untracked duplicate from `klippy/plugins/`.
+Only `klippy/plugins/cartographer.py` should be listed.
 
 ## Kalico / Klipper updater
 
