@@ -1,5 +1,11 @@
 # Cartographer3D Plugin — K2-OpenHost
 
+> [!IMPORTANT]
+> **Archived on 2026-10-04 — read-only history.** K2-OpenHost now uses the **official [Cartographer3D/cartographer3d-plugin](https://github.com/Cartographer3D/cartographer3d-plugin)** unchanged: it detects Kalico and supports the K2 directly. This fork is no longer maintained.
+> - Install: [K2-OpenHost Installer Helper](https://github.com/MzTechnology97/k2-openhost-installer-helper), menu 8, which also migrates hosts that still use this fork.
+> - Guide: [K2-OpenHost Cartographer3D](https://github.com/MzTechnology97/K2-OpenHost/blob/main/docs/en/CARTOGRAPHER.md) ([italiano](https://github.com/MzTechnology97/K2-OpenHost/blob/main/docs/it/CARTOGRAPHER.md)).
+> - Kalico for the K2 Pro: [kalico-k2pro](https://github.com/MzTechnology97/kalico-k2pro).
+
 K2-OpenHost integration fork of Cartographer3D for Creality K2-series printers running the host stack on an external Kalico host.
 
 > [!WARNING]
